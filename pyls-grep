@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Utility to list the most import parts of a Python file.
+# Usage:
+#     lspython <filename>
+
+for file in $*; do
+    echo "$(tput bold)Routines$(tput sgr0)"
+    grep '^def ' $file | sed 's/def /  /' | sed 's/:\s*$//'
+    echo
+
+    echo "$(tput bold)Classes$(tput sgr0)"
+    #grep '^class ' $file | sed 's/class /  /' | sort -u
+    grep '^class \|^\s\+def ' $file | sed 's/class /  /' | sed 's/\s*def /    /' | sed 's/:\s*$//'
+    echo
+
+    echo "$(tput bold)Modules$(tput sgr0)"
+    grep '^\s*import ' $file | sed 's/^\s*import /  /' | sort -u
+    grep '^\s*from ' $file | sed 's/^\s*/  /' | sort -u
+    echo
+
+    echo "$(tput bold)Variables$(tput sgr0)"
+    grep '^\S\+\s*= ' $file | sed 's/^\s*/  /'
+done

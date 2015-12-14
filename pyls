@@ -1,0 +1,137 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+Utility to give a high level overview of a python script.
+
+Usage:
+    pyls <filename>
+
+Dependencies:
+    astunparse or meta
+
+    Unsupported:
+        astor, astmonkey, macropy
+
+Bugs:
+    meta (v0.4.1) can't handle some assignments. Use astunparse instead.
+"""
+
+__author__ = __maintainer__ = "Laurent Verweijen"
+__license__ = "GPL3"
+
+import sys
+import ast
+
+INDENT_WIDTH = 2
+
+
+def main():
+    """Program entry point."""
+    with open(sys.argv[1]) as code_file:
+        parsed = ast.parse(code_file.read())
+
+    t = TopCollector()
+    t.visit(parsed)
+    print(t)
+
+
+try:
+    import astunparse
+
+    def unparse(node):
+        """Undo the effect of ast.parse using astunparse."""
+        return astunparse.unparse(node).strip()
+
+except ImportError:
+    import meta
+
+    def unparse(node):
+        """Undo the effect of ast.parse using meta.
+
+        Install astunparse for a stabler version.
+        """
+        try:
+            return meta.dump_python_source(node).strip()
+        except Exception as e:
+            print('oo', repr(e))
+            if hasattr(node, 'targets'):
+                targets = ", ".join(target.id for target in node.targets)
+                return "{} = BUG <{}>".format(targets, repr(e))
+            else:
+                return "BUG <{}>".format(repr(e))
+
+
+def indent(level):
+    """Insert an indent of level."""
+    return level * INDENT_WIDTH * " "
+
+
+def output_list(lst, level=0):
+    """Convert items in list to str and join them by a new line."""
+    output = []
+    for item in lst:
+        output.append(indent(level) + str(item))
+    return "\n".join(output)
+
+
+class TopCollector(ast.NodeVisitor):
+    def __init__(self):
+        self.functions = []
+        self.routines = []
+        self.classes = []
+        self.imports = []
+        self.import_froms = []
+        self.variables = []
+
+    def __str__(self):
+        output = [
+            "Routines:", output_list(self.functions, 1), "",
+            "Classes:", output_list(self.classes, 1), "",
+            "Modules:",
+            output_list(self.imports, 1),
+            output_list(self.import_froms, 1), "",
+            "Variables:", output_list(self.variables, 1)]
+        return "\n".join(output)
+
+    def visit_FunctionDef(self, node):
+        self.functions.append("{}({})".format(
+            node.name,
+            unparse(node.args)))
+
+    def visit_ClassDef(self, node):
+        collector = ClassCollector(node)
+        collector.visit(node)
+        self.classes.append(collector)
+
+    def visit_Import(self, node):
+        for name in node.names:
+            if name.asname is None:
+                self.imports.append(name.name)
+            else:
+                self.imports.append("{} as {}".format(name.name, name.asname))
+
+    def visit_ImportFrom(self, node):
+        for name in node.names:
+            self.import_froms.append(unparse(node))
+
+    def visit_Assign(self, node):
+        self.variables.append(unparse(node))
+
+
+class ClassCollector(ast.NodeVisitor):
+    def __init__(self, node):
+        self.title = "{}({})".format(node.name, ",".join(
+            unparse(base) for base in node.bases))
+        self.methods = []
+
+    def __str__(self):
+        return "{}\n{}".format(self.title, "".join(self.methods))
+
+    def visit_FunctionDef(self, node):
+        self.methods.append(indent(2) + "{}({})".format(
+            node.name,
+            unparse(node.args)) + "\n")
+
+if __name__ == "__main__":
+    main()

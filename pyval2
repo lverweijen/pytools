@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Usage pyval <expr>
+# Evaluate python expression <expr>
+
+python2 -c "print(repr($*))"
