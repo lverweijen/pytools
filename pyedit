@@ -1,0 +1,76 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+Utility to edit part of a python.
+
+Usage:
+    pyedit <filename> <identifier>
+
+Dependencies:
+    astunparse or meta
+
+    Unsupported:
+        astor, astmonkey, macropy
+
+Bugs:
+    meta (v0.4.1) can't handle some assignments. Use astunparse instead.
+"""
+
+__author__ = __maintainer__ = "Laurent Verweijen"
+__license__ = "GPL3"
+
+import os
+import sys
+import ast
+import subprocess
+import warnings
+
+
+def main():
+    """Program entry point."""
+    with open(sys.argv[1]) as code_file:
+        parsed = ast.parse(code_file.read())
+
+    t = DocumentationVisitor(sys.argv[2].split('.'))
+    t.visit(parsed)
+
+
+def edit(filename, line, column=0):
+    """Open editor in line and column."""
+    editor = os.environ.get("EDITOR", "vim")
+
+    if "vi" in editor or "gedit" in editor:
+        # Support for vi, vim, nvim, gvim, evim etc
+        # Support for gedit
+        subprocess.call([editor, "+{:d}".format(line), filename], shell=False)
+    elif "emacs" in editor or "nano" in editor:
+        # Support for emacs, xemacs, nano
+        subprocess.call([editor, "+{:d},{:d}".format(line, column), filename],
+                        shell=False)
+    else:
+        # Other editors are not supported yet
+        warnings.warn("Unsupported editor {}".format(editor))
+        subprocess.call([editor, "+{:d}".format(line), filename], shell=False)
+
+
+class DocumentationVisitor(ast.NodeVisitor):
+    """Visits the document looking for the required parts."""
+
+    def __init__(self, keywords):
+        """Create instance."""
+        self.keywords = keywords
+
+    def visit(self, node):
+        """Try to match. If a partial match is found delegate to a submatch."""
+        if hasattr(node, 'name') and node.name == self.keywords[0]:
+            if len(self.keywords) == 1:
+                edit(sys.argv[1], node.lineno, node.col_offset)
+            else:
+                dv = DocumentationVisitor(self.keywords[1:])
+                dv.visit(node)
+        else:
+            self.generic_visit(node)
+
+if __name__ == "__main__":
+    main()

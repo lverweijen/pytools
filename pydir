@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+# Directories
+for path in $(/usr/bin/find $* -maxdepth 1 -type d); do
+    has_python=
+    eval $(/usr/bin/find "$path" -type f -name '*.py' -printf 'has_python=1' -quit)
+    if [ -n "$has_python" ]; then
+        echo -e "\e[1;34m$(basename "$path")\e[0m"
+    fi
+done
+
+# Files
+for path in $(find $* -maxdepth 1 -type f -name '*.py'); do
+    basename "$path"
+done

@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+Utility to display part of a python.
+
+Usage:
+    pycat <filename> <identifier>
+
+Dependencies:
+    astunparse or meta
+
+    Unsupported:
+        astor, astmonkey, macropy
+
+Bugs:
+    meta (v0.4.1) can't handle some assignments. Use astunparse instead.
+"""
+
+__author__ = __maintainer__ = "Laurent Verweijen"
+__license__ = "GPL3"
+
+import sys
+import ast
+
+
+INDENT_WIDTH = 2
+
+
+try:
+    import astunparse
+
+    def unparse(node):
+        """Undo the effect of ast.parse using astunparse."""
+        return astunparse.unparse(node).strip()
+
+except ImportError:
+    import meta
+
+    def unparse(node):
+        """Undo the effect of ast.parse using meta.
+
+        Install astunparse for a stabler version.
+        """
+        try:
+            return meta.dump_python_source(node).strip()
+        except Exception as e:
+            print('oo', repr(e))
+            if hasattr(node, 'targets'):
+                targets = ", ".join(target.id for target in node.targets)
+                return "{} = BUG <{}>".format(targets, repr(e))
+            else:
+                return "BUG <{}>".format(repr(e))
+
+
+def main():
+    """Program entry point."""
+    with open(sys.argv[1]) as code_file:
+        parsed = ast.parse(code_file.read())
+
+    t = DocumentationVisitor(sys.argv[2].split('.'))
+    t.visit(parsed)
+
+
+class DocumentationVisitor(ast.NodeVisitor):
+    """Visits the document looking for the required parts."""
+
+    def __init__(self, keywords):
+        """Create instance."""
+        self.keywords = keywords
+
+    def visit(self, node):
+        """Try to match. If a partial match is found delegate to a submatch."""
+        if hasattr(node, 'name') and node.name == self.keywords[0]:
+            if len(self.keywords) == 1:
+                try:
+                    from pygments import highlight
+                    from pygments.lexers import PythonLexer
+                    from pygments.formatters import TerminalFormatter
+                    print(highlight(unparse(node), PythonLexer(),
+                                    TerminalFormatter()))
+                except ImportError:
+                    print(unparse(node))
+            else:
+                dv = DocumentationVisitor(self.keywords[1:])
+                dv.visit(node)
+        else:
+            self.generic_visit(node)
+
+if __name__ == "__main__":
+    main()
